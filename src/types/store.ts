@@ -182,6 +182,13 @@ export interface Order {
   quoteCustomsMode?: CustomsMode;
   quoteAdminNotes?: string;
   quoteExpiresAt?: string;
+  district?: string;
+  tehsil?: string;
+  paymentReceiptEmailSent?: boolean;
+  paymentReceiptEmailSentAt?: string;
+  paymentReceiptEmailSubject?: string;
+  paymentReceiptEmailRecipient?: string;
+  paymentReceiptEmailHtml?: string;
   notes?: string;
   createdAt: string;
   updatedAt?: string;
@@ -246,6 +253,7 @@ export interface StoreNotification {
   userId: string;
   type:
     | 'NEW_ORDER'
+    | 'PAYMENT_RECEIVED'
     | 'LOW_STOCK'
     | 'PAYMENT_FAILURE'
     | 'NEW_REVIEW'

@@ -193,8 +193,9 @@ export const AdminDashboardView: React.FC<{ onReturnToStore: () => void }> = ({
   const [newCouponValue, setNewCouponValue] = useState(20);
   const [newCouponMinAmount, setNewCouponMinAmount] = useState(200);
 
-  // International Freight Quoting Modal State
+  // International Freight Quoting & Transactional Receipt Modal State
   const [quotingOrder, setQuotingOrder] = useState<Order | null>(null);
+  const [viewingReceiptOrder, setViewingReceiptOrder] = useState<Order | null>(null);
   const [quoteFreightAmount, setQuoteFreightAmount] = useState<number>(8500);
   const [quoteCourierChoice, setQuoteCourierChoice] = useState<string>('DHL Express International');
   const [quoteDeliveryTime, setQuoteDeliveryTime] = useState<string>('4–6 business days');
@@ -3233,6 +3234,11 @@ export const AdminDashboardView: React.FC<{ onReturnToStore: () => void }> = ({
                               {ord.shippingAddressSummary}
                             </div>
                           )}
+                          {(ord.district || ord.tehsil) && (
+                            <div className="text-[10px] text-emerald-400 mt-0.5">
+                              {ord.district ? `District: ${ord.district}` : ''} {ord.tehsil ? `· Tehsil: ${ord.tehsil}` : ''}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-mono text-[11px]">
                           <div className="flex items-center gap-1.5">
@@ -3373,6 +3379,17 @@ export const AdminDashboardView: React.FC<{ onReturnToStore: () => void }> = ({
                           <div className="text-[11px] text-[#C5A059]">{formatPKR(ord.total)}</div>
                         </td>
                         <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setViewingReceiptOrder(ord);
+                            }}
+                            className="px-2.5 py-1 bg-red-950 hover:bg-red-900 border border-red-700/60 text-red-200 text-[11px] font-medium cursor-pointer"
+                            title="View customer Gmail receipt"
+                          >
+                            ✉️ Gmail Receipt
+                          </button>
                           {ord.status === 'QUOTE_REQUESTED' && (
                             <button
                               type="button"
@@ -3518,6 +3535,120 @@ export const AdminDashboardView: React.FC<{ onReturnToStore: () => void }> = ({
                         className="px-5 py-2 bg-[#C5A059] text-[#0B0F17] font-semibold cursor-pointer"
                       >
                         Dispatch Binding Freight Quote
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Transactional Gmail Receipt Inspector Modal for Admin */}
+              {viewingReceiptOrder && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                  <div className="bg-[#0F172A] border border-white/20 max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl text-xs rounded-lg overflow-hidden">
+                    <div className="bg-[#1E293B] border-b border-white/10 px-5 py-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-6 h-6 bg-red-600 text-white rounded flex items-center justify-center font-bold text-xs">
+                          M
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-white">
+                            Gmail Receipt Inspector — {viewingReceiptOrder.orderNumber}
+                          </h3>
+                          <p className="text-[10px] text-slate-400">
+                            Sent to: {viewingReceiptOrder.customerEmail}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setViewingReceiptOrder(null)}
+                        className="text-slate-400 hover:text-white cursor-pointer px-2 py-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="p-6 overflow-y-auto space-y-4 bg-[#0B0F17]">
+                      <div className="p-4 bg-emerald-950/60 border border-emerald-500/40 space-y-1 rounded">
+                        <div className="flex items-center justify-between">
+                          <strong className="text-emerald-300 font-semibold">
+                            ✓ Apki Payment Recieved Ho Chuki Hy!
+                          </strong>
+                          <span className="text-[10px] font-mono bg-emerald-700 text-white px-2 py-0.5 rounded">
+                            STATUS: PAID
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-emerald-200">
+                          This transactional receipt was generated and delivered to the customer upon payment completion.
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-white/5 border border-white/10 space-y-2 font-mono text-slate-300">
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Subject:</span>
+                          <span className="text-white font-medium">
+                            Payment Recieved: Order #{viewingReceiptOrder.orderNumber} | {settings.storeName || 'Atelier Aurelia'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Store Name:</span>
+                          <span className="text-white font-bold">{settings.storeName || 'Atelier Aurelia'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Order ID:</span>
+                          <span className="text-white">{viewingReceiptOrder.orderNumber}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Customer:</span>
+                          <span className="text-white">{viewingReceiptOrder.customerName} ({viewingReceiptOrder.customerEmail})</span>
+                        </div>
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Payment Protocol:</span>
+                          <span className="text-[#C5A059]">{viewingReceiptOrder.paymentMethod}</span>
+                        </div>
+                        {viewingReceiptOrder.paymentReference && (
+                          <div className="flex justify-between border-b border-white/10 pb-1.5">
+                            <span className="text-slate-500">Transaction ID (TID):</span>
+                            <span className="text-[#C5A059] font-bold">{viewingReceiptOrder.paymentReference}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between border-b border-white/10 pb-1.5">
+                          <span className="text-slate-500">Total Amount:</span>
+                          <span className="text-emerald-400 font-bold">
+                            PKR {formatPKR(viewingReceiptOrder.total)} (${viewingReceiptOrder.total.toFixed(2)})
+                          </span>
+                        </div>
+                        {viewingReceiptOrder.district && (
+                          <div className="flex justify-between border-b border-white/10 pb-1.5">
+                            <span className="text-slate-500">District:</span>
+                            <span className="text-white font-medium">{viewingReceiptOrder.district}</span>
+                          </div>
+                        )}
+                        {viewingReceiptOrder.tehsil && (
+                          <div className="flex justify-between border-b border-white/10 pb-1.5">
+                            <span className="text-slate-500">Tehsil:</span>
+                            <span className="text-white font-medium">{viewingReceiptOrder.tehsil}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Destination:</span>
+                          <span className="text-white text-right truncate max-w-xs">
+                            {viewingReceiptOrder.shippingAddressSummary || 'Direct Pickup'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1E293B] border-t border-white/10 px-5 py-3 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        ✓ Dispatched via Store Treasury Gateway
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewingReceiptOrder(null)}
+                        className="px-4 py-1.5 bg-white text-black font-semibold text-xs cursor-pointer hover:bg-slate-200"
+                      >
+                        Close Inspector
                       </button>
                     </div>
                   </div>

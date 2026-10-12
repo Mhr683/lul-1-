@@ -83,15 +83,15 @@ export const INITIAL_SETTINGS: StoreSettings = {
   codEnabled: true, // Pakistan domestic COD
   codMinOrder: 500,
   codMaxOrder: 150000,
-  nayapayEnabled: false,
-  nayapayAccountTitle: '',
+  nayapayEnabled: true, // Pakistan Advance Mobile Wallet
+  nayapayAccountTitle: 'Atelier Aurelia',
   nayapayNumber: '',
-  nayapayInstructions: '',
-  raastEnabled: false,
-  raastAccountTitle: '',
+  nayapayInstructions: 'Transfer exact order amount via NayaPay and submit your 6+ digit Transaction ID (TID) below for treasury verification.',
+  raastEnabled: true, // Pakistan Advance Bank Transfer & RAAST
+  raastAccountTitle: 'Atelier Aurelia Treasury',
   raastIban: '',
-  bankName: '',
-  bankTransferInstructions: '',
+  bankName: 'Scheduled Bank (Pakistan) / RAAST Instant',
+  bankTransferInstructions: 'Transfer via RAAST (Instant) or Online Banking to store treasury. Submit your 6+ digit Transaction Reference (TID / Stan) below for treasury verification.',
   stripeEnabled: false, // Unconfigured: Requires merchant-country eligibility & approved gateway credentials
   paypalEnabled: false, // Unconfigured: Requires merchant-country eligibility & approved gateway credentials
   guestCheckoutEnabled: true,

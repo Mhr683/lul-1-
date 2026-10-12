@@ -101,6 +101,8 @@ interface StoreContextValue {
     paymentSubMethod?: string;
     paymentReference?: string;
     paymentProofDetails?: string;
+    district?: string;
+    tehsil?: string;
     notes?: string;
     isQuoteRequest?: boolean;
   }) => Promise<Order>;
@@ -744,6 +746,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ? 'CONFIRMED'
       : 'PENDING';
 
+    const isAdvancePaymentPaid = !isQuoteRequest && paymentResult.paymentStatus === 'PAID';
+    let emailReceiptHtml = '';
+    let emailReceiptSubject = `Payment Recieved: Order #${orderNum} | ${settings.storeName || 'Atelier Aurelia'}`;
+
+    if (isAdvancePaymentPaid) {
+      try {
+        const emailRes = await fetch('/api/email/send-payment-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: payload.customerEmail,
+            customerName: payload.customerName,
+            orderNumber: orderNum,
+            storeName: settings.storeName || 'Atelier Aurelia',
+            paymentMethod: payload.paymentMethod,
+            paymentSubMethod: payload.paymentSubMethod,
+            paymentReference: payload.paymentReference || paymentResult.transactionId,
+            totalAmount: total,
+            currency: settings.currency,
+            items: cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price })),
+            shippingAddress: payload.shippingAddressSummary,
+            district: payload.district,
+            tehsil: payload.tehsil,
+          }),
+        });
+        if (emailRes.ok) {
+          const emailData = await emailRes.json();
+          emailReceiptHtml = emailData.htmlPreview || '';
+          if (emailData.subject) emailReceiptSubject = emailData.subject;
+        }
+      } catch (err) {
+        console.warn('Payment receipt email dispatch error:', err);
+      }
+    }
+
     const newOrder: Order = {
       id: orderId,
       orderNumber: orderNum,
@@ -766,19 +803,36 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       currency: settings.currency,
       exchangeRateSnapshot: settings.usdToPkrRate || 278.5,
       ...(appliedCoupon && !isQuoteRequest ? { couponCode: appliedCoupon.code } : {}),
+      ...(payload.district ? { district: payload.district.slice(0, 80) } : {}),
+      ...(payload.tehsil ? { tehsil: payload.tehsil.slice(0, 80) } : {}),
       shippingAddressSummary: payload.shippingAddressSummary.slice(0, 480),
       shippingCalculationSnapshot: shippingSnapshot,
       notes: combinedNotes,
       createdAt: new Date().toISOString(),
+      ...(isAdvancePaymentPaid
+        ? {
+            paymentReceiptEmailSent: true,
+            paymentReceiptEmailSentAt: new Date().toISOString(),
+            paymentReceiptEmailSubject: emailReceiptSubject,
+            paymentReceiptEmailRecipient: payload.customerEmail,
+            paymentReceiptEmailHtml: emailReceiptHtml,
+          }
+        : {}),
     };
 
     if (firebaseUser) {
       try {
         await setDoc(doc(db, 'orders', orderId), newOrder);
         await pushNotification(
-          'NEW_ORDER',
-          isQuoteRequest ? `Quote Request ${orderNum}` : `Order ${orderNum} Confirmed`,
-          `${payload.customerName} submitted ${isQuoteRequest ? 'an International Quote Request' : `an order for ${total.toFixed(2)} ${settings.currency}`}.`
+          isAdvancePaymentPaid ? 'PAYMENT_RECEIVED' : 'NEW_ORDER',
+          isAdvancePaymentPaid
+            ? `Payment Recieved · ${orderNum} | ${settings.storeName || 'Atelier Aurelia'}`
+            : isQuoteRequest
+            ? `Quote Request ${orderNum}`
+            : `Order ${orderNum} Confirmed`,
+          isAdvancePaymentPaid
+            ? `Apki payment ba-hifazat recieve ho chuki hy. Amount: ${settings.currency} ${total.toLocaleString()}. Gmail confirmation sent to ${payload.customerEmail} from ${settings.storeName || 'Atelier Aurelia'}.`
+            : `${payload.customerName} submitted ${isQuoteRequest ? 'an International Quote Request' : `an order for ${total.toFixed(2)} ${settings.currency}`}.`
         );
       } catch (error) {
         handleFirestoreError(error, OperationType.CREATE, `orders/${orderId}`);
@@ -866,6 +920,40 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const nextPaymentStatus: PaymentStatus = serverVerification?.newPaymentStatus || (action === 'APPROVE' ? 'PAID' : 'FAILED');
     const nextOrderStatus: OrderStatus = serverVerification?.newOrderStatus || (action === 'APPROVE' ? 'CONFIRMED' : 'CANCELLED');
 
+    let approvedReceiptHtml = target.paymentReceiptEmailHtml || '';
+    let approvedSubject = target.paymentReceiptEmailSubject || `Payment Recieved: Order #${target.orderNumber} | ${settings.storeName || 'Atelier Aurelia'}`;
+
+    if (action === 'APPROVE') {
+      try {
+        const mailRes = await fetch('/api/email/send-payment-receipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toEmail: target.customerEmail,
+            customerName: target.customerName,
+            orderNumber: target.orderNumber,
+            storeName: settings.storeName || 'Atelier Aurelia',
+            paymentMethod: target.paymentMethod,
+            paymentSubMethod: target.paymentSubMethod,
+            paymentReference: target.paymentReference || 'Bank / Wallet Reconciled',
+            totalAmount: target.total,
+            currency: target.currency || settings.currency,
+            items: [],
+            shippingAddress: target.shippingAddressSummary,
+            district: target.district,
+            tehsil: target.tehsil,
+          }),
+        });
+        if (mailRes.ok) {
+          const mailData = await mailRes.json();
+          approvedReceiptHtml = mailData.htmlPreview || '';
+          if (mailData.subject) approvedSubject = mailData.subject;
+        }
+      } catch (e) {
+        console.warn('Failed to send verified receipt email:', e);
+      }
+    }
+
     const updatedOrder: Order = {
       ...target,
       paymentStatus: nextPaymentStatus,
@@ -873,6 +961,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       paymentVerifiedBy: serverVerification?.verifiedBy || actor,
       paymentVerifiedAt: now,
       paymentVerificationNote: serverVerification?.note || note || (action === 'APPROVE' ? 'Payment verified in bank ledger.' : 'Transaction ID not recognized or funds unreceived.'),
+      paymentReceiptEmailSent: action === 'APPROVE' ? true : target.paymentReceiptEmailSent,
+      paymentReceiptEmailSentAt: action === 'APPROVE' ? now : target.paymentReceiptEmailSentAt,
+      paymentReceiptEmailSubject: action === 'APPROVE' ? approvedSubject : target.paymentReceiptEmailSubject,
+      paymentReceiptEmailRecipient: target.customerEmail,
+      paymentReceiptEmailHtml: approvedReceiptHtml || target.paymentReceiptEmailHtml,
       updatedAt: now,
     };
 
